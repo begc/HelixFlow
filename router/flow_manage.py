@@ -1,5 +1,5 @@
 import json
-from typing import List
+from typing import List,Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from router.base import FlowResponse,BaseResponse, CommonResponse
@@ -27,7 +27,7 @@ def create_flow(*,flow: FlowCreate,
     db_flow = Flow(**flow.dict())
     flow = session.query(Flow).filter(Flow.name == db_flow.name).first()
     if flow:
-        return BaseResponse(code=500, msg='工作流名称重复')
+        return BaseResponse(code=500, msg='Flow name already exists')
     db_flow.create_time = get_current_time_str()
     db_flow.update_time = db_flow.create_time
     db_flow.user_id = 1
@@ -48,9 +48,9 @@ def read_flow(*,flow_id: UUID, session: Session = Depends(get_table_session)):
 @router.get('/', status_code=200)
 def read_flows(*,
                session: Session = Depends(get_table_session),
-               name: str = Query(default=None, description='根据name查找数据库'),
-               page_size: int = Query(default=None, description='根据pagesize查找数据库'),
-               page_num: int = Query(default=None, description='根据pagenum查找数据库'),
+               name: str = Query(default=None, description='flow name'),
+               page_size: int = Query(default=None),
+               page_num: int = Query(default=None),
                status: int = None):
     """Read all flows."""
     sql = select(Flow)
@@ -91,7 +91,7 @@ def update_flow(*,flow_id: UUID,
     if 'name' in flow_data:
         flow = session.query(Flow).filter(Flow.name == flow_data['name']).first()
         if flow and flow.id != flow_id:
-            return FlowResponse(code=500, msg='工作流名称重复')
+            return FlowResponse(code=500, msg='Flow name already exists')
 
 
     if 'status' in flow_data and flow_data['status'] == 2 and db_flow.status == 1:
@@ -99,10 +99,10 @@ def update_flow(*,flow_id: UUID,
         try:
             graph_data = json_deserialization(db_flow.data)
             if graph_data.get('nodes') == []:
-                return FlowResponse(code=500, msg=f'Flow 编译不通过, 请检查Flow是否存在节点')
+                return FlowResponse(code=500, msg=f'Flow compile failed, nodes cannot be empty')
             compile_graph(data=graph_data)
         except Exception as exc:
-            return FlowResponse(code=500, msg=f'Flow 编译不通过, {str(exc)}')
+            return FlowResponse(code=500, msg=f'Flow compile failed, {str(exc)}')
 
     res_data = {}
     for key, value in flow_data.items():
@@ -134,16 +134,15 @@ def delete_flow(*,
 
 
 @router.post('/process', status_code=200)
-def process_flow(id: UUID,
+def process_flow(id: UUID,inputs: Optional[dict] = None,
                  session: Session = Depends(get_table_session)):
     data = json_deserialization(session.get(Flow, id).data)
     graph = FrontendGraph.from_payload(data)
     state_graph = graph.compile_graph()
     print(state_graph.get_graph().print_ascii())
     state = graph.state
-    input = {"output": "你好"}
 
-    state = parse_input_to_state(input, state, start_node=graph.get_start_node())
+    state = parse_input_to_state(inputs["inputs"], state, start_node=graph.get_start_node())
 
     result = state_graph.invoke(input=state, config=graph.config)
     result = parse_end_node_to_output(result)

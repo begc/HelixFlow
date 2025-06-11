@@ -1,5 +1,6 @@
 from router import flow_manage
 from router import operator_manage
+from router import user_manager
 from fastapi import APIRouter
 
 router = APIRouter(
@@ -7,3 +8,4 @@ router = APIRouter(
 )
 router.include_router(flow_manage)
 router.include_router(operator_manage)
+router.include_router(user_manager)
