@@ -1,7 +1,7 @@
 import json
 from fastapi import APIRouter, status, Depends,Response
 from fastapi.encoders import jsonable_encoder
-from fastapi_jwt_auth import AuthJWT
+from fastapi_jwt_auth2 import AuthJWT
 from database.base import get_table_session
 from router.base import CommonResponse
 from database.model.user import UserLogin, UserRegister

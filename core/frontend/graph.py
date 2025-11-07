@@ -1,9 +1,9 @@
 from typing import List, Dict, TypedDict
 from core.frontend.node import FrontendNode
 from core.frontend.edge import FrontendEdge
-from langgraph.graph.graph import CompiledGraph
 from core.initial import NODE_FUNCTIONS, create_dynamic_state_graph
 from core.state import StateField, AppState
+from langgraph.checkpoint.memory import InMemorySaver
 class FrontendGraph:
 
     def __init__(self, nodes: List[FrontendNode],
@@ -27,9 +27,10 @@ class FrontendGraph:
         self.state = self._build_states()
         self.config = self._build_node_params()
 
-    def compile_graph(self):
+    def compile_graph(self,checkpointer_type:str):
         state_graph = create_dynamic_state_graph(self.nodes, self.edges, self._condition_edges)
-        return state_graph.compile()
+        checkpointer = InMemorySaver()
+        return state_graph.compile(checkpointer=checkpointer)
 
 
 
@@ -137,6 +138,6 @@ class FrontendGraph:
             if node.name == 'end':
                 return node
 
-def compile_graph(data: Dict) -> CompiledGraph:
+def compile_graph(data: Dict) :
     graph = FrontendGraph.from_payload(data)
     return graph.compile_graph()

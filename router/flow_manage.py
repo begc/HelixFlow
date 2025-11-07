@@ -1,6 +1,6 @@
 import json
 from typing import List,Optional
-from uuid import UUID
+from uuid import UUID, uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from router.base import FlowResponse,BaseResponse, CommonResponse
 from sqlmodel import Session, select, func
@@ -134,17 +134,21 @@ def delete_flow(*,
 
 
 @router.post('/process', status_code=200)
-def process_flow(id: UUID,inputs: Optional[dict] = None,
+def process_flow(id: UUID,inputs: Optional[dict] = None,saver: Optional[str]="memory",
                  session: Session = Depends(get_table_session)):
     data = json_deserialization(session.get(Flow, id).data)
     graph = FrontendGraph.from_payload(data)
-    state_graph = graph.compile_graph()
+    state_graph = graph.compile_graph(checkpointer_type=saver)
     print(state_graph.get_graph().print_ascii())
+    req = uuid4()
+    logger.info(f'Processing flow {id} with request id {req}')
     state = graph.state
 
     state = parse_input_to_state(inputs["inputs"], state, start_node=graph.get_start_node())
 
-    result = state_graph.invoke(input=state, config=graph.config)
+    config = graph.config
+    config["configurable"]["thread_id"] = str(req)
+    result = state_graph.invoke(input=state, config=config)
     result = parse_end_node_to_output(result)
 
     return CommonResponse(code=200, msg='success', data=result)
